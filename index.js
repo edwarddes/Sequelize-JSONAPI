@@ -45,7 +45,7 @@ class jsonapi
 				}
 			})
 		
-	        sequelizeModel
+	        model
 	            .create(attributes)
 	            .then(respond)
 	            .catch(next);
