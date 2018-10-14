@@ -224,10 +224,9 @@ class jsonapi
 	{
 		return function(req,res,next)
 		{
-		
 			var body = req.body,
 	            options = req.options || {}; 
-
+				
 	        options.where = options.where || {};
 	        options.where[model.primaryKeyAttribute] = req.params.id;
 		
@@ -250,6 +249,14 @@ class jsonapi
 				else 
 				{
 					var attributes = body.data.attributes;
+					//if the column is an integer column it needs null for a blank value not ''
+					//this doesn't hurt string columns, at least in my cases
+					Object.keys(attributes).forEach(key =>
+					{
+						if(attributes[key] == '')
+							attributes[key] = null;
+					})
+					
 					associationData.belongsToAssociations.forEach(function(belongsTo)
 					{
 						var relationship = relationships[belongsTo.foreignKey];
@@ -262,6 +269,7 @@ class jsonapi
 							attributes[belongsTo.foreignKey] = null;
 						}
 					})
+					
 	                return row.updateAttributes(attributes);
 	            }
 	        }
