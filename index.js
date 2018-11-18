@@ -96,27 +96,31 @@ class jsonapi
 				data: null
 			};
 		
-			var associationData = AssociationDataForModel(model);
-		
-			var includes = [];
-			associationData.hasManyAssociations.forEach(function(association)
+			var simple = req.query.simple || false;
+			if(!simple)
 			{
-				includes.push(
+				var associationData = AssociationDataForModel(model);
+				var includes = [];
+				associationData.hasManyAssociations.forEach(function(association)
 				{
-					model: association.target,
-					separate: true
+					includes.push(
+					{
+						model: association.target,
+						separate: true
+					});
 				});
-			});
-			associationData.hasOneAssociations.forEach(function(association)
-			{
-				includes.push({model: association.target});
-			});
-			options.include = includes;
-		
+				associationData.hasOneAssociations.forEach(function(association)
+				{
+					includes.push({model: association.target});
+				});
+				options.include = includes;
+			}
+
 			FetchAndBuildResourceObjectForModelByID(
 				model,
 				req.params.id,
-				options
+				options,
+				simple
 			).then(function(object)
 			{
 				if(object == null)
@@ -139,7 +143,6 @@ class jsonapi
 		{	
 			var options = req.options || {};
 			options.where = options.where || {};
-		
 		
 			var idList = null;
 			if(req.query.filter != undefined && req.query.filter.id != undefined)
@@ -297,7 +300,8 @@ class jsonapi
 				FetchAndBuildResourceObjectForModelByID(
 					model,
 					req.params.id,
-					options
+					options,
+					false
 				).then(function(object)
 				{
 					if(object == null)
@@ -315,13 +319,13 @@ class jsonapi
 	}
 }
 
-function FetchAndBuildResourceObjectForModelByID(model,id,options)
+function FetchAndBuildResourceObjectForModelByID(model,id,options,simple)
 {
 	return model
 		.findById(id,options)
 		.then(function(instance)
 	{
-		return BuildResourceObjectForInstance(instance,model,false);
+		return BuildResourceObjectForInstance(instance,model,simple);
 	})
 };
 
