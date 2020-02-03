@@ -145,9 +145,16 @@ class jsonapi
 			options.where = options.where || {};
 		
 			var idList = null;
+			var filter = null
 			if(req.query.filter != undefined && req.query.filter.id != undefined)
 			{
 				idList = req.query.filter.id.split(',');
+			}
+			
+			//other filter parameter
+			if(req.query.filter != undefined && req.query.filter.id == undefined)
+			{
+				filter = req.query.filter;
 			}
 		
 			var jsonAPIObject = {
@@ -155,7 +162,7 @@ class jsonapi
 			};
 
 			//fetching list of all of model
-			if(idList == null)
+			if(idList == null && filter == null)
 			{
 				model
 					.findAll(options)
@@ -194,7 +201,14 @@ class jsonapi
 				});
 				options.include = includes;
 				
-				options.where = {id: idList};
+				if(idList != null)
+				{
+					options.where = {id: idList};
+				}
+				else if(filter != null)
+				{
+					options.where = filter;
+				}
 				
 				model
 					.findAll(options)
@@ -272,7 +286,6 @@ class jsonapi
 							attributes[belongsTo.foreignKey] = null;
 						}
 					})
-					
 	                return row.updateAttributes(attributes);
 	            }
 	        }
