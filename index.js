@@ -286,7 +286,7 @@ class jsonapi
 							attributes[belongsTo.foreignKey] = null;
 						}
 					})
-	                return row.updateAttributes(attributes);
+	                return row.update(attributes);
 	            }
 	        }
         
