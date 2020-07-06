@@ -335,7 +335,7 @@ class jsonapi
 function FetchAndBuildResourceObjectForModelByID(model,id,options,simple)
 {
 	return model
-		.findById(id,options)
+		.findByPk(id,options)
 		.then(function(instance)
 	{
 		return BuildResourceObjectForInstance(instance,model,simple);
