@@ -270,7 +270,7 @@ class jsonapi
 					//this doesn't hurt string columns, at least in my cases
 					Object.keys(attributes).forEach(key =>
 					{
-						if(attributes[key] == '')
+						if(attributes[key] === '')
 							attributes[key] = null;
 					})
 					
