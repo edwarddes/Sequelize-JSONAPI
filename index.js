@@ -276,14 +276,17 @@ class jsonapi
 					
 					associationData.belongsToAssociations.forEach(function(belongsTo)
 					{
-						var relationship = relationships[belongsTo.foreignKey];
-						if(relationship.data != null)
+						if(belongsTo.foreightKey != undefined)
 						{
-							attributes[belongsTo.foreignKey] = relationship.data.id;
-						}
-						else
-						{
-							attributes[belongsTo.foreignKey] = null;
+							var relationship = relationships[belongsTo.foreignKey];
+							if(relationship.data != null)
+							{
+								attributes[belongsTo.foreignKey] = relationship.data.id;
+							}
+							else
+							{
+								attributes[belongsTo.foreignKey] = null;
+							}
 						}
 					})
 	                return row.update(attributes);
