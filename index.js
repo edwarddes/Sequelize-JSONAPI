@@ -276,7 +276,7 @@ class jsonapi
 					
 					associationData.belongsToAssociations.forEach(function(belongsTo)
 					{
-						if(belongsTo.foreightKey != undefined)
+						if(relationships && belongsTo.foreignKey != undefined)
 						{
 							var relationship = relationships[belongsTo.foreignKey];
 							if(relationship.data != null)
