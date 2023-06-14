@@ -28,6 +28,11 @@ class jsonapi
 				data: {},
 			};
 		
+			if(relationships == undefined)
+			{
+				relationships = [];
+			}
+			
 			var associationData = AssociationDataForModel(model);
 			associationData.belongsToAssociations.forEach(function(belongsTo)
 			{
