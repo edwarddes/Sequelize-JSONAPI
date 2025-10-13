@@ -155,7 +155,7 @@ describe('Relationship Endpoints', function() {
 	});
 
 	describe('PATCH /relationships/:relationship', function() {
-		it('should update hasMany relationship (full replacement)', async function() {
+		it('should replace all related resources when updating hasMany relationship', async function() {
 			const { user1, user2 } = await seedTestData();
 
 			// Get user1's current posts
@@ -198,7 +198,7 @@ describe('Relationship Endpoints', function() {
 			expect(user2UpdatedPosts).to.have.lengthOf(0);
 		});
 
-		it('should update belongsTo relationship', async function() {
+		it('should change parent resource when updating belongsTo relationship', async function() {
 			const { post1, user1, user2 } = await seedTestData();
 
 			// Verify post1 belongs to user1
@@ -224,7 +224,7 @@ describe('Relationship Endpoints', function() {
 			expect(post1.userId).to.equal(user2.id);
 		});
 
-		it('should set belongsTo relationship to null', async function() {
+		it('should remove parent resource when setting belongsTo relationship to null', async function() {
 			const { post1 } = await seedTestData();
 
 			const response = await request(app)
@@ -242,7 +242,7 @@ describe('Relationship Endpoints', function() {
 			expect(post1.userId).to.be.null;
 		});
 
-		it('should clear hasMany relationship with empty array', async function() {
+		it('should remove all related resources when clearing hasMany relationship with empty array', async function() {
 			const { user1 } = await seedTestData();
 
 			const response = await request(app)
@@ -273,7 +273,7 @@ describe('Relationship Endpoints', function() {
 				.expect(400);
 		});
 
-		it('should return 400 for invalid data type on hasMany (not array)', async function() {
+		it('should return 400 when sending object instead of array for hasMany relationship', async function() {
 			const { user1 } = await seedTestData();
 
 			await request(app)
@@ -285,7 +285,7 @@ describe('Relationship Endpoints', function() {
 				.expect(400);
 		});
 
-		it('should return 400 for invalid data type on belongsTo (array instead of object)', async function() {
+		it('should return 400 when sending array instead of object for belongsTo relationship', async function() {
 			const { post1, user1 } = await seedTestData();
 
 			await request(app)
@@ -317,6 +317,105 @@ describe('Relationship Endpoints', function() {
 					data: []
 				})
 				.expect(404);
+		});
+
+		it('should handle updating hasMany relationship with non-existent resource IDs', async function() {
+			const { user1 } = await seedTestData();
+
+			// Try to set relationship to non-existent post IDs
+			const response = await request(app)
+				.patch(`/api/users/${user1.id}/relationships/posts`)
+				.set('Content-Type', 'application/vnd.api+json')
+				.send({
+					data: [
+						{ type: 'Post', id: '99999' },
+						{ type: 'Post', id: '99998' }
+					]
+				})
+				.expect(200);
+
+			// The update should succeed but with no actual relationships created
+			// since the IDs don't exist
+			const posts = await Post.findAll({
+				where: { userId: user1.id }
+			});
+			expect(posts).to.have.lengthOf(0);
+		});
+
+		it('should handle updating belongsTo relationship with non-existent resource ID', async function() {
+			const { post1 } = await seedTestData();
+
+			// Try to set relationship to non-existent user ID
+			// This will fail with a 500 error if foreign key constraints are enabled
+			// Or succeed if they're not enabled (depends on DB configuration)
+			const response = await request(app)
+				.patch(`/api/posts/${post1.id}/relationships/userId`)
+				.set('Content-Type', 'application/vnd.api+json')
+				.send({
+					data: {
+						type: 'User',
+						id: '99999'
+					}
+				});
+
+			// Accept either 200 (no FK constraints) or 500 (FK constraint violation)
+			expect([200, 500]).to.include(response.status);
+		});
+
+		it('should handle empty resource identifier objects in hasMany update', async function() {
+			const { user1 } = await seedTestData();
+
+			// Send data with resource identifiers that have IDs
+			const response = await request(app)
+				.patch(`/api/users/${user1.id}/relationships/posts`)
+				.set('Content-Type', 'application/vnd.api+json')
+				.send({
+					data: [
+						{ type: 'Post', id: '' }
+					]
+				})
+				.expect(200);
+
+			// Empty ID should be treated as falsy
+			const posts = await Post.findAll({
+				where: { userId: user1.id }
+			});
+			expect(posts).to.have.lengthOf(0);
+		});
+
+		it('should handle large batch updates for hasMany relationships', async function() {
+			const { user1 } = await seedTestData();
+
+			// Create 50 posts belonging to no one
+			const postPromises = [];
+			for (let i = 0; i < 50; i++) {
+				postPromises.push(Post.create({
+					title: `Batch Post ${i}`,
+					content: `Content ${i}`
+				}));
+			}
+			const posts = await Promise.all(postPromises);
+
+			// Update user1's posts to include all 50 posts
+			const response = await request(app)
+				.patch(`/api/users/${user1.id}/relationships/posts`)
+				.set('Content-Type', 'application/vnd.api+json')
+				.send({
+					data: posts.map(post => ({
+						type: 'Post',
+						id: String(post.id)
+					}))
+				})
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(50);
+
+			// Verify in database
+			const updatedPosts = await Post.findAll({
+				where: { userId: user1.id }
+			});
+			expect(updatedPosts).to.have.lengthOf(50);
 		});
 	});
 

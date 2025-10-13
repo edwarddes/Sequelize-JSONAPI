@@ -84,6 +84,7 @@ describe('Sequelize-JSONAPI', function() {
 
 			const response = await request(app)
 				.post('/api/posts')
+				.set('Content-Type', 'application/vnd.api+json')
 				.send({
 					data: {
 						attributes: {
@@ -112,6 +113,7 @@ describe('Sequelize-JSONAPI', function() {
 		it('should create a resource with null belongsTo relationship', async function() {
 			const response = await request(app)
 				.post('/api/posts')
+				.set('Content-Type', 'application/vnd.api+json')
 				.send({
 					data: {
 						attributes: {
@@ -134,6 +136,7 @@ describe('Sequelize-JSONAPI', function() {
 		it('should handle missing relationships object', async function() {
 			const response = await request(app)
 				.post('/api/users')
+				.set('Content-Type', 'application/vnd.api+json')
 				.send({
 					data: {
 						attributes: {
@@ -296,6 +299,7 @@ describe('Sequelize-JSONAPI', function() {
 
 			const response = await request(app)
 				.patch(`/api/users/${user1.id}`)
+				.set('Content-Type', 'application/vnd.api+json')
 				.send({
 					data: {
 						attributes: {
@@ -317,6 +321,7 @@ describe('Sequelize-JSONAPI', function() {
 		it('should return 404 for non-existent resource', async function() {
 			await request(app)
 				.patch('/api/users/9999')
+				.set('Content-Type', 'application/vnd.api+json')
 				.send({
 					data: {
 						attributes: {
@@ -332,6 +337,7 @@ describe('Sequelize-JSONAPI', function() {
 
 			const response = await request(app)
 				.patch(`/api/users/${user1.id}`)
+				.set('Content-Type', 'application/vnd.api+json')
 				.send({
 					data: {
 						attributes: {
@@ -351,6 +357,7 @@ describe('Sequelize-JSONAPI', function() {
 
 			const response = await request(app)
 				.patch(`/api/posts/${post1.id}`)
+				.set('Content-Type', 'application/vnd.api+json')
 				.send({
 					data: {
 						attributes: {
@@ -377,6 +384,7 @@ describe('Sequelize-JSONAPI', function() {
 
 			const response = await request(app)
 				.patch(`/api/posts/${post1.id}`)
+				.set('Content-Type', 'application/vnd.api+json')
 				.send({
 					data: {
 						attributes: {
@@ -400,6 +408,7 @@ describe('Sequelize-JSONAPI', function() {
 
 			const response = await request(app)
 				.patch(`/api/posts/${post1.id}`)
+				.set('Content-Type', 'application/vnd.api+json')
 				.send({
 					data: {
 						attributes: {

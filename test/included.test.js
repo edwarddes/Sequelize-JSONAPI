@@ -50,7 +50,7 @@ describe('Included Resources (Compound Documents)', function() {
 	});
 
 	describe('GetSingle with included', function() {
-		it('should include related resources for a user with posts', async function() {
+		it('should include related posts in compound document when fetching user', async function() {
 			const { user1 } = await seedTestData();
 
 			const response = await request(app)
@@ -74,7 +74,7 @@ describe('Included Resources (Compound Documents)', function() {
 			});
 		});
 
-		it('should include posts when fetching a user', async function() {
+		it('should include all posts belonging to user in included array', async function() {
 			const { user1 } = await seedTestData();
 
 			const response = await request(app)
@@ -86,7 +86,7 @@ describe('Included Resources (Compound Documents)', function() {
 			expect(includedPosts.length).to.equal(2); // user1 has 2 posts
 		});
 
-		it('should include comments when fetching a post', async function() {
+		it('should include all comments belonging to post in included array', async function() {
 			const { post1 } = await seedTestData();
 
 			const response = await request(app)
@@ -99,7 +99,7 @@ describe('Included Resources (Compound Documents)', function() {
 			expect(includedComments.length).to.equal(2); // post1 has 2 comments
 		});
 
-		it('should not include member when simple=true', async function() {
+		it('should omit included member when simple=true query parameter is set', async function() {
 			const { user1 } = await seedTestData();
 
 			const response = await request(app)
@@ -112,7 +112,7 @@ describe('Included Resources (Compound Documents)', function() {
 			expect(response.body.data).to.not.have.property('relationships');
 		});
 
-		it('should not include member when there are no related resources', async function() {
+		it('should omit included member when resource has no related resources', async function() {
 			// Create a user with no posts
 			const user = await User.create({
 				name: 'Lonely User',

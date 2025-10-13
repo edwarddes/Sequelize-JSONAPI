@@ -55,6 +55,49 @@ function getBaseUrl(req) {
 	return `${protocol}://${host}${path}`;
 }
 
+// Helper function to find an association by relationship name
+function findAssociationByRelationshipName(model, relationshipName) {
+	const associationData = getAssociationDataForModel(model);
+	let association = null;
+	let associationType = null;
+
+	// Check hasMany associations
+	const hasManyMatch = associationData.hasManyAssociations.find(assoc => {
+		const relName = assoc.as[0].toLowerCase() + assoc.as.substring(1);
+		return relName === relationshipName;
+	});
+
+	if (hasManyMatch) {
+		association = hasManyMatch;
+		associationType = 'HasMany';
+	}
+
+	// Check hasOne associations
+	if (!association) {
+		const hasOneMatch = associationData.hasOneAssociations.find(assoc => {
+			const relName = assoc.as + "Id";
+			return relName === relationshipName;
+		});
+		if (hasOneMatch) {
+			association = hasOneMatch;
+			associationType = 'HasOne';
+		}
+	}
+
+	// Check belongsTo associations
+	if (!association) {
+		const belongsToMatch = associationData.belongsToAssociations.find(assoc => {
+			return assoc.foreignKey === relationshipName;
+		});
+		if (belongsToMatch) {
+			association = belongsToMatch;
+			associationType = 'BelongsTo';
+		}
+	}
+
+	return { association, associationType };
+}
+
 // Helper function to format JSON:API errors
 function formatJsonApiError(status, title, detail, source) {
 	const error = {
@@ -512,43 +555,7 @@ class jsonapi
 				const baseUrl = getBaseUrl(req);
 
 				// Find the association
-				const associationData = getAssociationDataForModel(model);
-				let association = null;
-				let associationType = null;
-
-				// Check hasMany associations
-				const hasManyMatch = associationData.hasManyAssociations.find(assoc => {
-					const relName = assoc.as[0].toLowerCase() + assoc.as.substring(1);
-					return relName === relationshipName;
-				});
-
-				if (hasManyMatch) {
-					association = hasManyMatch;
-					associationType = 'HasMany';
-				}
-
-				// Check hasOne associations
-				if (!association) {
-					const hasOneMatch = associationData.hasOneAssociations.find(assoc => {
-						const relName = assoc.as + "Id";
-						return relName === relationshipName;
-					});
-					if (hasOneMatch) {
-						association = hasOneMatch;
-						associationType = 'HasOne';
-					}
-				}
-
-				// Check belongsTo associations
-				if (!association) {
-					const belongsToMatch = associationData.belongsToAssociations.find(assoc => {
-						return assoc.foreignKey === relationshipName;
-					});
-					if (belongsToMatch) {
-						association = belongsToMatch;
-						associationType = 'BelongsTo';
-					}
-				}
+				const { association, associationType } = findAssociationByRelationshipName(model, relationshipName);
 
 				if (!association) {
 					return sendJsonApiError(
@@ -800,43 +807,7 @@ class jsonapi
 				const baseUrl = getBaseUrl(req);
 
 				// Find the association
-				const associationData = getAssociationDataForModel(model);
-				let association = null;
-				let associationType = null;
-
-				// Check hasMany associations
-				const hasManyMatch = associationData.hasManyAssociations.find(assoc => {
-					const relName = assoc.as[0].toLowerCase() + assoc.as.substring(1);
-					return relName === relationshipName;
-				});
-
-				if (hasManyMatch) {
-					association = hasManyMatch;
-					associationType = 'HasMany';
-				}
-
-				// Check hasOne associations
-				if (!association) {
-					const hasOneMatch = associationData.hasOneAssociations.find(assoc => {
-						const relName = assoc.as + "Id";
-						return relName === relationshipName;
-					});
-					if (hasOneMatch) {
-						association = hasOneMatch;
-						associationType = 'HasOne';
-					}
-				}
-
-				// Check belongsTo associations
-				if (!association) {
-					const belongsToMatch = associationData.belongsToAssociations.find(assoc => {
-						return assoc.foreignKey === relationshipName;
-					});
-					if (belongsToMatch) {
-						association = belongsToMatch;
-						associationType = 'BelongsTo';
-					}
-				}
+				const { association, associationType } = findAssociationByRelationshipName(model, relationshipName);
 
 				if (!association) {
 					return sendJsonApiError(
@@ -942,43 +913,7 @@ class jsonapi
 				}
 
 				// Find the association
-				const associationData = getAssociationDataForModel(model);
-				let association = null;
-				let associationType = null;
-
-				// Check hasMany associations
-				const hasManyMatch = associationData.hasManyAssociations.find(assoc => {
-					const relName = assoc.as[0].toLowerCase() + assoc.as.substring(1);
-					return relName === relationshipName;
-				});
-
-				if (hasManyMatch) {
-					association = hasManyMatch;
-					associationType = 'HasMany';
-				}
-
-				// Check hasOne associations
-				if (!association) {
-					const hasOneMatch = associationData.hasOneAssociations.find(assoc => {
-						const relName = assoc.as + "Id";
-						return relName === relationshipName;
-					});
-					if (hasOneMatch) {
-						association = hasOneMatch;
-						associationType = 'HasOne';
-					}
-				}
-
-				// Check belongsTo associations
-				if (!association) {
-					const belongsToMatch = associationData.belongsToAssociations.find(assoc => {
-						return assoc.foreignKey === relationshipName;
-					});
-					if (belongsToMatch) {
-						association = belongsToMatch;
-						associationType = 'BelongsTo';
-					}
-				}
+				const { association, associationType } = findAssociationByRelationshipName(model, relationshipName);
 
 				if (!association) {
 					return sendJsonApiError(
