@@ -28,7 +28,7 @@ describe('Sequelize-JSONAPI', function() {
 
 		// Create Express app with routes
 		app = express();
-		app.use(express.json());
+		app.use(express.json({ type: 'application/vnd.api+json' }));
 
 		const router = express.Router();
 		jsonapi.createRoutesForModel(router, User);
@@ -56,6 +56,7 @@ describe('Sequelize-JSONAPI', function() {
 		it('should create a new user resource', async function() {
 			const response = await request(app)
 				.post('/api/users')
+				.set('Content-Type', 'application/vnd.api+json')
 				.send({
 					data: {
 						attributes: {
@@ -66,12 +67,12 @@ describe('Sequelize-JSONAPI', function() {
 					}
 				})
 				.expect(201)
-				.expect('Content-Type', /json/);
+				.expect('Content-Type', /application\/vnd\.api\+json/);
 
 			expect(response.body).to.have.property('data');
 			expect(response.body.data).to.have.property('id');
 			expect(response.body.data).to.have.property('type', 'User');
-			expect(response.body.data.id).to.be.a('number');
+			expect(response.body.data.id).to.be.a('string');
 		});
 
 		it('should create a post with belongsTo relationship', async function() {
@@ -101,7 +102,7 @@ describe('Sequelize-JSONAPI', function() {
 				})
 				.expect(201);
 
-			expect(response.body.data.id).to.be.a('number');
+			expect(response.body.data.id).to.be.a('string');
 
 			// Verify the relationship was set
 			const post = await Post.findByPk(response.body.data.id);
@@ -158,7 +159,7 @@ describe('Sequelize-JSONAPI', function() {
 				.expect('Content-Type', /json/);
 
 			expect(response.body.data).to.deep.include({
-				id: user1.id,
+				id: String(user1.id),
 				type: 'User'
 			});
 			expect(response.body.data.attributes).to.deep.equal({
@@ -176,7 +177,7 @@ describe('Sequelize-JSONAPI', function() {
 				.get(`/api/users/${user1.id}`)
 				.expect(200);
 
-			expect(response.body.data).to.have.property('id', user1.id);
+			expect(response.body.data).to.have.property('id', String(user1.id));
 			expect(response.body.data).to.have.property('type', 'User');
 			expect(response.body.data).to.have.property('relationships');
 			expect(response.body.data.relationships).to.have.property('posts');
@@ -272,7 +273,7 @@ describe('Sequelize-JSONAPI', function() {
 
 			expect(response.body.data).to.be.an('array');
 			expect(response.body.data).to.have.lengthOf(1);
-			expect(response.body.data[0].id).to.equal(user1.id);
+			expect(response.body.data[0].id).to.equal(String(user1.id));
 		});
 
 		it('should filter by custom filter parameters', async function() {
@@ -518,7 +519,7 @@ describe('Sequelize-JSONAPI', function() {
 				.expect(200);
 
 			expect(response.body.data.attributes).to.not.have.property('id');
-			expect(response.body.data).to.have.property('id', user1.id);
+			expect(response.body.data).to.have.property('id', String(user1.id));
 		});
 
 		it('should exclude association keys from attributes', async function() {

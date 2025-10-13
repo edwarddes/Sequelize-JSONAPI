@@ -3,11 +3,108 @@
 const dasherize = require('dasherize');
 const inflection = require('inflection');
 
+// JSON:API Content-Type constant
+const JSONAPI_CONTENT_TYPE = 'application/vnd.api+json';
+
+// Helper function to set JSON:API Content-Type header
+function setJsonApiHeaders(res) {
+	res.setHeader('Content-Type', JSONAPI_CONTENT_TYPE);
+}
+
+// Helper function to deduplicate included resources by type and id
+function deduplicateIncluded(includedArray) {
+	const seen = new Map();
+	const deduplicated = [];
+
+	includedArray.forEach((resource) => {
+		const key = `${resource.type}:${resource.id}`;
+		if (!seen.has(key)) {
+			seen.set(key, true);
+			deduplicated.push(resource);
+		}
+	});
+
+	return deduplicated;
+}
+
+// Helper function to format JSON:API errors
+function formatJsonApiError(status, title, detail, source) {
+	const error = {
+		status: String(status),
+		title: title
+	};
+
+	if (detail) {
+		error.detail = detail;
+	}
+
+	if (source) {
+		error.source = source;
+	}
+
+	return error;
+}
+
+// Helper function to send JSON:API error response
+function sendJsonApiError(res, status, title, detail, source) {
+	setJsonApiHeaders(res);
+	res.status(status).json({
+		errors: [formatJsonApiError(status, title, detail, source)]
+	});
+}
+
+// Middleware to validate Content-Type header on requests with body
+function validateContentType(req, res, next) {
+	// Only validate for requests with a body (POST, PATCH)
+	if (req.method === 'POST' || req.method === 'PATCH') {
+		const contentType = req.get('Content-Type');
+
+		// Check if Content-Type header exists
+		if (!contentType) {
+			return sendJsonApiError(
+				res,
+				400,
+				'Missing Content-Type',
+				'Content-Type header is required for requests with a body'
+			);
+		}
+
+		// Check if Content-Type matches JSON:API spec
+		// Must be exactly 'application/vnd.api+json' with no media type parameters
+		if (contentType !== JSONAPI_CONTENT_TYPE && !contentType.startsWith(JSONAPI_CONTENT_TYPE + ';')) {
+			// If it has the base type but with parameters, that's a 415 error
+			if (contentType.startsWith(JSONAPI_CONTENT_TYPE)) {
+				return sendJsonApiError(
+					res,
+					415,
+					'Unsupported Media Type',
+					'Content-Type header must be application/vnd.api+json without media type parameters'
+				);
+			}
+
+			// Otherwise it's the wrong content type
+			return sendJsonApiError(
+				res,
+				415,
+				'Unsupported Media Type',
+				`Content-Type must be ${JSONAPI_CONTENT_TYPE}`,
+				{ header: 'Content-Type' }
+			);
+		}
+	}
+
+	next();
+}
+
 class jsonapi
 {
 	static createRoutesForModel(router, model)
 	{
 		const modelNameForRoute = dasherize(inflection.pluralize(model.name));
+
+		// Apply Content-Type validation middleware to all routes
+		router.use('/' + modelNameForRoute, validateContentType);
+		router.use('/' + modelNameForRoute + '/:id', validateContentType);
 
 		router.get('/' + modelNameForRoute, jsonapi.GetList(model));
 		router.get('/' + modelNameForRoute + '/:id', jsonapi.GetSingle(model));
@@ -16,11 +113,37 @@ class jsonapi
 		router.post('/' + modelNameForRoute, jsonapi.Create(model));
 	}
 
+	// Export middleware for manual use
+	static get contentTypeMiddleware() {
+		return validateContentType;
+	}
+
 	static Create(model)
 	{
 		return async function(req, res, next)
 		{
 			try {
+				// Validate request body structure
+				if (!req.body || !req.body.data) {
+					return sendJsonApiError(
+						res,
+						400,
+						'Invalid Request',
+						'Request body must contain a "data" object',
+						{ pointer: '/data' }
+					);
+				}
+
+				if (!req.body.data.attributes) {
+					return sendJsonApiError(
+						res,
+						400,
+						'Invalid Request',
+						'Request body must contain "data.attributes"',
+						{ pointer: '/data/attributes' }
+					);
+				}
+
 				const attributes = req.body.data.attributes;
 				const relationships = req.body.data.relationships;
 
@@ -49,8 +172,33 @@ class jsonapi
 
 				const row = await model.create(attributes);
 				jsonAPIObject.data = buildResourceIdentifierObject(model.name, row.get('id'));
+
+				setJsonApiHeaders(res);
 				res.status(201).json(jsonAPIObject);
 			} catch (error) {
+				// Format Sequelize validation errors
+				if (error.name === 'SequelizeValidationError') {
+					const errors = error.errors.map((err) => formatJsonApiError(
+						422,
+						'Validation Error',
+						err.message,
+						{ pointer: `/data/attributes/${err.path}` }
+					));
+					setJsonApiHeaders(res);
+					return res.status(422).json({ errors });
+				}
+
+				// Format other database errors
+				if (error.name === 'SequelizeDatabaseError') {
+					return sendJsonApiError(
+						res,
+						500,
+						'Database Error',
+						'An error occurred while processing your request'
+					);
+				}
+
+				// Pass other errors to error handler
 				next(error);
 			}
 		};
@@ -70,14 +218,26 @@ class jsonapi
 
 				if (!instance)
 				{
-					res.sendStatus(404);
+					return sendJsonApiError(
+						res,
+						404,
+						'Resource Not Found',
+						`${model.name} with id ${req.params.id} not found`
+					);
 				}
-				else
-				{
-					await instance.destroy();
-					res.sendStatus(204);
-				}
+
+				await instance.destroy();
+				setJsonApiHeaders(res);
+				res.sendStatus(204);
 			} catch (error) {
+				if (error.name === 'SequelizeDatabaseError') {
+					return sendJsonApiError(
+						res,
+						500,
+						'Database Error',
+						'An error occurred while deleting the resource'
+					);
+				}
 				next(error);
 			}
 		};
@@ -125,15 +285,32 @@ class jsonapi
 
 				if (object === null)
 				{
-					res.status(404).end();
+					return sendJsonApiError(
+						res,
+						404,
+						'Resource Not Found',
+						`${model.name} with id ${req.params.id} not found`
+					);
 				}
-				else
-				{
-					jsonAPIObject.data = object.resourceObject;
-					// jsonAPIObject.included = object.included;
-					res.json(jsonAPIObject);
+
+				jsonAPIObject.data = object.resourceObject;
+
+				// Add included member if there are related resources (deduplicated)
+				if (object.included && object.included.length > 0) {
+					jsonAPIObject.included = deduplicateIncluded(object.included);
 				}
+
+				setJsonApiHeaders(res);
+				res.json(jsonAPIObject);
 			} catch (error) {
+				if (error.name === 'SequelizeDatabaseError') {
+					return sendJsonApiError(
+						res,
+						500,
+						'Database Error',
+						'An error occurred while fetching the resource'
+					);
+				}
 				next(error);
 			}
 		};
@@ -211,6 +388,8 @@ class jsonapi
 
 					const instances = await model.findAll(options);
 
+					const allIncluded = [];
+
 					if (instances)
 					{
 						instances.forEach((instance) =>
@@ -221,14 +400,34 @@ class jsonapi
 							}
 							else
 							{
-								jsonAPIObject.data.push(buildResourceObjectForInstance(instance, model, false).resourceObject);
+								const result = buildResourceObjectForInstance(instance, model, false);
+								jsonAPIObject.data.push(result.resourceObject);
+
+								// Collect included resources from all instances
+								if (result.included && result.included.length > 0) {
+									allIncluded.push(...result.included);
+								}
 							}
 						});
 					}
 
+					// Add included member if there are related resources (deduplicated)
+					if (allIncluded.length > 0) {
+						jsonAPIObject.included = deduplicateIncluded(allIncluded);
+					}
+
+					setJsonApiHeaders(res);
 					res.json(jsonAPIObject);
 				}
 			} catch (error) {
+				if (error.name === 'SequelizeDatabaseError') {
+					return sendJsonApiError(
+						res,
+						500,
+						'Database Error',
+						'An error occurred while fetching resources'
+					);
+				}
 				next(error);
 			}
 		};
@@ -239,6 +438,27 @@ class jsonapi
 		return async function(req, res, next)
 		{
 			try {
+				// Validate request body structure
+				if (!req.body || !req.body.data) {
+					return sendJsonApiError(
+						res,
+						400,
+						'Invalid Request',
+						'Request body must contain a "data" object',
+						{ pointer: '/data' }
+					);
+				}
+
+				if (!req.body.data.attributes) {
+					return sendJsonApiError(
+						res,
+						400,
+						'Invalid Request',
+						'Request body must contain "data.attributes"',
+						{ pointer: '/data/attributes' }
+					);
+				}
+
 				const body = req.body;
 				const options = req.options || {};
 
@@ -254,8 +474,12 @@ class jsonapi
 
 				if (!row)
 				{
-					res.sendStatus(404);
-					return;
+					return sendJsonApiError(
+						res,
+						404,
+						'Resource Not Found',
+						`${model.name} with id ${req.params.id} not found`
+					);
 				}
 
 				// If the column is an integer column it needs null for a blank value not ''
@@ -315,14 +539,45 @@ class jsonapi
 
 				if (object === null)
 				{
-					res.status(404).end();
+					return sendJsonApiError(
+						res,
+						404,
+						'Resource Not Found',
+						`${model.name} with id ${req.params.id} not found`
+					);
 				}
-				else
-				{
-					jsonAPIObject.data = object.resourceObject;
-					res.json(jsonAPIObject);
+
+				jsonAPIObject.data = object.resourceObject;
+
+				// Add included member if there are related resources (deduplicated)
+				if (object.included && object.included.length > 0) {
+					jsonAPIObject.included = deduplicateIncluded(object.included);
 				}
+
+				setJsonApiHeaders(res);
+				res.json(jsonAPIObject);
 			} catch (error) {
+				// Format Sequelize validation errors
+				if (error.name === 'SequelizeValidationError') {
+					const errors = error.errors.map((err) => formatJsonApiError(
+						422,
+						'Validation Error',
+						err.message,
+						{ pointer: `/data/attributes/${err.path}` }
+					));
+					setJsonApiHeaders(res);
+					return res.status(422).json({ errors });
+				}
+
+				if (error.name === 'SequelizeDatabaseError') {
+					return sendJsonApiError(
+						res,
+						500,
+						'Database Error',
+						'An error occurred while updating the resource'
+					);
+				}
+
 				next(error);
 			}
 		};
@@ -453,7 +708,7 @@ function buildSimpleResourceObject(instance, excludedAttributes)
 	const rowValues = instance.get();
 
 	const resourceObject = {
-		id: rowValues.id,
+		id: String(rowValues.id), // Convert to string per JSON:API spec
 		type: instance._modelOptions.name.singular,
 		attributes: {}
 	};
@@ -473,7 +728,7 @@ function buildSimpleResourceObject(instance, excludedAttributes)
 function buildResourceIdentifierObject(modelName, id)
 {
 	return {
-		id: id,
+		id: String(id), // Convert to string per JSON:API spec
 		type: modelName
 	};
 }
