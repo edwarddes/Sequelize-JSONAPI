@@ -4,7 +4,8 @@
   "description": "JSON:API compliant REST endpoints for Sequelize models",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha test/**/*.test.js --timeout 5000",
+    "test:watch": "mocha test/**/*.test.js --timeout 5000 --watch"
   },
   "author": "",
   "license": "ISC",
@@ -16,5 +17,13 @@
     "inflection": "^1.12.0",
     "sequelize": "^6.35.0",
     "sequelize-cli": "^6.6.0"
+  },
+  "devDependencies": {
+    "chai": "^4.3.10",
+    "express": "^4.18.2",
+    "mocha": "^10.2.0",
+    "sinon": "^17.0.1",
+    "sqlite3": "^5.1.6",
+    "supertest": "^6.3.3"
   }
 }
