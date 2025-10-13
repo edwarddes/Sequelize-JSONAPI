@@ -3,40 +3,40 @@
 const dasherize = require('dasherize');
 const inflection = require('inflection');
 
-class jsonapi 
+class jsonapi
 {
-	static createRoutesForModel(router,model)
+	static createRoutesForModel(router, model)
 	{
 		const modelNameForRoute = dasherize(inflection.pluralize(model.name));
 
-		router.get('/'+modelNameForRoute,jsonapi.GetList(model));
-		router.get('/'+modelNameForRoute+'/:id',jsonapi.GetSingle(model));
-		router.patch('/'+modelNameForRoute+'/:id',jsonapi.Update(model));
-		router.delete('/'+modelNameForRoute+'/:id',jsonapi.Delete(model));
-		router.post('/'+modelNameForRoute,jsonapi.Create(model));
+		router.get('/' + modelNameForRoute, jsonapi.GetList(model));
+		router.get('/' + modelNameForRoute + '/:id', jsonapi.GetSingle(model));
+		router.patch('/' + modelNameForRoute + '/:id', jsonapi.Update(model));
+		router.delete('/' + modelNameForRoute + '/:id', jsonapi.Delete(model));
+		router.post('/' + modelNameForRoute, jsonapi.Create(model));
 	}
 
 	static Create(model)
 	{
-		return async function(req,res,next)
+		return async function(req, res, next)
 		{
 			try {
 				const attributes = req.body.data.attributes;
 				const relationships = req.body.data.relationships;
 
 				const jsonAPIObject = {
-					data: {},
+					data: {}
 				};
 
 				const relationshipsData = relationships || {};
 
-				const associationData = AssociationDataForModel(model);
-				associationData.belongsToAssociations.forEach(function(belongsTo)
+				const associationData = getAssociationDataForModel(model);
+				associationData.belongsToAssociations.forEach((belongsTo) =>
 				{
 					const relationship = relationshipsData[belongsTo.foreignKey];
-					if(relationship != null)
+					if (relationship !== null && relationship !== undefined)
 					{
-						if(relationship.data != null)
+						if (relationship.data !== null && relationship.data !== undefined)
 						{
 							attributes[belongsTo.foreignKey] = relationship.data.id;
 						}
@@ -48,17 +48,17 @@ class jsonapi
 				});
 
 				const row = await model.create(attributes);
-				jsonAPIObject.data = JSONAPIResourceIdentifierObjectForID(model.name,row.get('id'));
+				jsonAPIObject.data = buildResourceIdentifierObject(model.name, row.get('id'));
 				res.status(201).json(jsonAPIObject);
-			} catch(error) {
+			} catch (error) {
 				next(error);
 			}
-		}
+		};
 	}
 
 	static Delete(model)
 	{
-		return async function(req,res,next)
+		return async function(req, res, next)
 		{
 			try {
 				const options = req.options || {};
@@ -77,15 +77,15 @@ class jsonapi
 					await instance.destroy();
 					res.sendStatus(204);
 				}
-			} catch(error) {
+			} catch (error) {
 				next(error);
 			}
-		}
+		};
 	}
 
 	static GetSingle(model)
 	{
-		return async function(req,res,next)
+		return async function(req, res, next)
 		{
 			try {
 				const options = req.options || {};
@@ -96,43 +96,44 @@ class jsonapi
 				};
 
 				const simple = req.query.simple || false;
-				if(!simple)
+				if (!simple)
 				{
-					const associationData = AssociationDataForModel(model);
+					const associationData = getAssociationDataForModel(model);
 					const includes = [];
-					associationData.hasManyAssociations.forEach(function(association)
+					associationData.hasManyAssociations.forEach((association) =>
 					{
-						includes.push(
-						{
+						includes.push({
 							model: association.target,
 							separate: true
 						});
 					});
-					associationData.hasOneAssociations.forEach(function(association)
+					associationData.hasOneAssociations.forEach((association) =>
 					{
-						includes.push({model: association.target});
+						includes.push({
+							model: association.target
+						});
 					});
 					options.include = includes;
 				}
 
-				const object = await FetchAndBuildResourceObjectForModelByID(
+				const object = await fetchAndBuildResourceObjectForModelById(
 					model,
 					req.params.id,
 					options,
 					simple
 				);
 
-				if(object == null)
+				if (object === null)
 				{
 					res.status(404).end();
 				}
 				else
 				{
 					jsonAPIObject.data = object.resourceObject;
-					//jsonAPIObject.included = object.included;
+					// jsonAPIObject.included = object.included;
 					res.json(jsonAPIObject);
 				}
-			} catch(error) {
+			} catch (error) {
 				next(error);
 			}
 		};
@@ -140,7 +141,7 @@ class jsonapi
 
 	static GetList(model)
 	{
-		return async function(req,res,next)
+		return async function(req, res, next)
 		{
 			try {
 				const options = req.options || {};
@@ -148,13 +149,13 @@ class jsonapi
 
 				let idList = null;
 				let filter = null;
-				if(req.query.filter != undefined && req.query.filter.id != undefined)
+				if (req.query.filter !== undefined && req.query.filter.id !== undefined)
 				{
 					idList = req.query.filter.id.split(',');
 				}
 
-				//other filter parameter
-				if(req.query.filter != undefined && req.query.filter.id == undefined)
+				// Other filter parameter
+				if (req.query.filter !== undefined && req.query.filter.id === undefined)
 				{
 					filter = req.query.filter;
 				}
@@ -163,46 +164,47 @@ class jsonapi
 					data: []
 				};
 
-				//fetching list of all of model
-				if(idList == null && filter == null)
+				// Fetching list of all of model
+				if (idList === null && filter === null)
 				{
 					const instances = await model.findAll(options);
 
 					if (instances)
 					{
-						instances.forEach(function(instance)
+						instances.forEach((instance) =>
 						{
-							jsonAPIObject.data.push(BuildResourceObjectForInstance(instance,model,true).resourceObject);
+							jsonAPIObject.data.push(buildResourceObjectForInstance(instance, model, true).resourceObject);
 						});
 					}
 
 					res.json(jsonAPIObject);
 				}
-				//fetching specific instances of model coalesced
+				// Fetching specific instances of model coalesced
 				else
 				{
-					const associationData = AssociationDataForModel(model);
+					const associationData = getAssociationDataForModel(model);
 
 					const includes = [];
-					associationData.hasManyAssociations.forEach(function(association)
+					associationData.hasManyAssociations.forEach((association) =>
 					{
-						includes.push(
-						{
+						includes.push({
 							model: association.target,
 							separate: true
 						});
 					});
-					associationData.hasOneAssociations.forEach(function(association)
+					associationData.hasOneAssociations.forEach((association) =>
 					{
-						includes.push({model: association.target});
+						includes.push({
+							model: association.target
+						});
 					});
 					options.include = includes;
 
-					if(idList != null)
+					if (idList !== null)
 					{
 						options.where = {id: idList};
 					}
-					else if(filter != null)
+					else if (filter !== null)
 					{
 						options.where = filter;
 					}
@@ -211,22 +213,22 @@ class jsonapi
 
 					if (instances)
 					{
-						instances.forEach(function(instance)
+						instances.forEach((instance) =>
 						{
-							if(instance == null)
+							if (instance === null)
 							{
 								res.status(404).end();
 							}
 							else
 							{
-								jsonAPIObject.data.push(BuildResourceObjectForInstance(instance,model,false).resourceObject);
+								jsonAPIObject.data.push(buildResourceObjectForInstance(instance, model, false).resourceObject);
 							}
 						});
 					}
 
 					res.json(jsonAPIObject);
 				}
-			} catch(error) {
+			} catch (error) {
 				next(error);
 			}
 		};
@@ -234,7 +236,7 @@ class jsonapi
 
 	static Update(model)
 	{
-		return async function(req,res,next)
+		return async function(req, res, next)
 		{
 			try {
 				const body = req.body;
@@ -243,7 +245,7 @@ class jsonapi
 				options.where = options.where || {};
 				options.where[model.primaryKeyAttribute] = req.params.id;
 
-				const associationData = AssociationDataForModel(model);
+				const associationData = getAssociationDataForModel(model);
 
 				const attributes = body.data.attributes;
 				const relationships = body.data.relationships;
@@ -256,20 +258,22 @@ class jsonapi
 					return;
 				}
 
-				//if the column is an integer column it needs null for a blank value not ''
-				//this doesn't hurt string columns, at least in my cases
-				Object.keys(attributes).forEach(key =>
+				// If the column is an integer column it needs null for a blank value not ''
+				// This doesn't hurt string columns, at least in my cases
+				Object.keys(attributes).forEach((key) =>
 				{
-					if(attributes[key] === '')
+					if (attributes[key] === '')
+					{
 						attributes[key] = null;
+					}
 				});
 
-				associationData.belongsToAssociations.forEach(function(belongsTo)
+				associationData.belongsToAssociations.forEach((belongsTo) =>
 				{
-					if(relationships && belongsTo.foreignKey != undefined)
+					if (relationships && belongsTo.foreignKey !== undefined)
 					{
 						const relationship = relationships[belongsTo.foreignKey];
-						if(relationship.data != null)
+						if (relationship.data !== null && relationship.data !== undefined)
 						{
 							attributes[belongsTo.foreignKey] = relationship.data.id;
 						}
@@ -282,54 +286,56 @@ class jsonapi
 
 				await row.update(attributes);
 
-				const jsonAPIObject = {};
-				jsonAPIObject["data"] = null;
+				const jsonAPIObject = {
+					data: null
+				};
 
 				const includes = [];
-				associationData.hasManyAssociations.forEach(function(association)
+				associationData.hasManyAssociations.forEach((association) =>
 				{
-					includes.push(
-					{
+					includes.push({
 						model: association.target,
 						separate: true
 					});
 				});
-				associationData.hasOneAssociations.forEach(function(association)
+				associationData.hasOneAssociations.forEach((association) =>
 				{
-					includes.push({model: association.target});
+					includes.push({
+						model: association.target
+					});
 				});
 				options.include = includes;
 
-				const object = await FetchAndBuildResourceObjectForModelByID(
+				const object = await fetchAndBuildResourceObjectForModelById(
 					model,
 					req.params.id,
 					options,
 					false
 				);
 
-				if(object == null)
+				if (object === null)
 				{
 					res.status(404).end();
 				}
 				else
 				{
-					jsonAPIObject["data"] = object.resourceObject;
+					jsonAPIObject.data = object.resourceObject;
 					res.json(jsonAPIObject);
 				}
-			} catch(error) {
+			} catch (error) {
 				next(error);
 			}
-		}
+		};
 	}
 }
 
-async function FetchAndBuildResourceObjectForModelByID(model,id,options,simple)
+async function fetchAndBuildResourceObjectForModelById(model, id, options, simple)
 {
-	const instance = await model.findByPk(id,options);
-	return BuildResourceObjectForInstance(instance,model,simple);
+	const instance = await model.findByPk(id, options);
+	return buildResourceObjectForInstance(instance, model, simple);
 }
 
-function BuildResourceObjectForInstance(instance,model,simple)
+function buildResourceObjectForInstance(instance, model, simple)
 {
 	if (instance)
 	{
@@ -338,61 +344,60 @@ function BuildResourceObjectForInstance(instance,model,simple)
 		const relationships = {};
 		const included = [];
 
-		const associationData = AssociationDataForModel(model);
-		const resourceObject = JSONAPISimpleResourceObject(instance,associationData.excludedKeys);
+		const associationData = getAssociationDataForModel(model);
+		const resourceObject = buildSimpleResourceObject(instance, associationData.excludedKeys);
 
-		//controls including the included and relationships
-		if(!simple)
+		// Controls including the included and relationships
+		if (!simple)
 		{
-			associationData.hasManyAssociations.forEach(function(associationKey)
+			associationData.hasManyAssociations.forEach((associationKey) =>
 			{
 				const relationship = {};
 
 				const entities = rowValues[associationKey.as];
 				const relationshipValues = [];
-				if(entities)
+				if (entities)
 				{
-					entities.forEach(function(entity)
+					entities.forEach((entity) =>
 					{
 						const entityRowValues = entity.get();
-						relationshipValues.push(JSONAPIResourceIdentifierObjectForID(entity._modelOptions.name.singular,entityRowValues['id']));
-						included.push(JSONAPISimpleResourceObject(entity,associationData.excludedKeys));
+						relationshipValues.push(buildResourceIdentifierObject(entity._modelOptions.name.singular, entityRowValues.id));
+						included.push(buildSimpleResourceObject(entity, associationData.excludedKeys));
 					});
 				}
-				relationship['data'] = relationshipValues;
+				relationship.data = relationshipValues;
 				relationships[associationKey.as[0].toLowerCase() + associationKey.as.substring(1)] = relationship;
 			});
 
-
-			associationData.hasOneAssociations.forEach(function(associationKey)
+			associationData.hasOneAssociations.forEach((associationKey) =>
 			{
 				const relationship = {};
-				if(rowValues[associationKey.as] != null)
+				if (rowValues[associationKey.as] !== null && rowValues[associationKey.as] !== undefined)
 				{
-					relationship['data'] = JSONAPIResourceIdentifierObjectForID(
+					relationship.data = buildResourceIdentifierObject(
 						rowValues[associationKey.as]._modelOptions.name.singular,
 						rowValues[associationKey.as].id);
 				}
 				else
 				{
-					relationship['data'] = null;
+					relationship.data = null;
 				}
-				relationships[associationKey.as+"Id"] = relationship;
+				relationships[associationKey.as + "Id"] = relationship;
 			});
 
-			associationData.belongsToAssociations.forEach(function(associationKey)
+			associationData.belongsToAssociations.forEach((associationKey) =>
 			{
 				const relationship = {};
 
-				if(rowValues[associationKey.foreignKey] != null)
+				if (rowValues[associationKey.foreignKey] !== null && rowValues[associationKey.foreignKey] !== undefined)
 				{
-					relationship['data'] = JSONAPIResourceIdentifierObjectForID(
+					relationship.data = buildResourceIdentifierObject(
 						associationKey.target.options.name.singular,
 						rowValues[associationKey.foreignKey]);
 				}
 				else
 				{
-					relationship['data'] = null;
+					relationship.data = null;
 				}
 				relationships[associationKey.foreignKey] = relationship;
 			});
@@ -400,7 +405,7 @@ function BuildResourceObjectForInstance(instance,model,simple)
 			resourceObject.relationships = relationships;
 		}
 
-		return {resourceObject:resourceObject, included:included};
+		return {resourceObject: resourceObject, included: included};
 	}
 	else
 	{
@@ -408,7 +413,7 @@ function BuildResourceObjectForInstance(instance,model,simple)
 	}
 }
 
-function AssociationDataForModel(model)
+function getAssociationDataForModel(model)
 {
 	const associations = model.associations;
 
@@ -419,20 +424,20 @@ function AssociationDataForModel(model)
 		excludedKeys: []
 	};
 
-	Object.keys(associations).forEach(function(associationKey)
+	Object.keys(associations).forEach((associationKey) =>
 	{
 		const associationType = associations[associationKey].associationType;
-		if(associationType == "HasMany")
+		if (associationType === "HasMany")
 		{
 			associationData.hasManyAssociations.push(associations[associationKey]);
 			associationData.excludedKeys.push(associations[associationKey].as);
 		}
-		if(associationType == "HasOne")
+		if (associationType === "HasOne")
 		{
 			associationData.hasOneAssociations.push(associations[associationKey]);
 			associationData.excludedKeys.push(associations[associationKey].as);
 		}
-		if(associationType == "BelongsTo")
+		if (associationType === "BelongsTo")
 		{
 			associationData.excludedKeys.push(associations[associationKey].foreignKey);
 			associationData.belongsToAssociations.push(associations[associationKey]);
@@ -442,20 +447,20 @@ function AssociationDataForModel(model)
 	return associationData;
 }
 
-//includes type, id, and attributes for the instance
-function JSONAPISimpleResourceObject(instance,excludedAttributes)
+// Includes type, id, and attributes for the instance
+function buildSimpleResourceObject(instance, excludedAttributes)
 {
 	const rowValues = instance.get();
 
 	const resourceObject = {
-		id: rowValues['id'],
+		id: rowValues.id,
 		type: instance._modelOptions.name.singular,
-		attributes: {},
+		attributes: {}
 	};
 
-	Object.keys(instance.dataValues).forEach(function(key)
+	Object.keys(instance.dataValues).forEach((key) =>
 	{
-		if(key != "id" && !excludedAttributes.includes(key))
+		if (key !== "id" && !excludedAttributes.includes(key))
 		{
 			resourceObject.attributes[key] = rowValues[key];
 		}
@@ -464,13 +469,13 @@ function JSONAPISimpleResourceObject(instance,excludedAttributes)
 	return resourceObject;
 }
 
-//includes only type and id
-function JSONAPIResourceIdentifierObjectForID(modelName,id)
+// Includes only type and id
+function buildResourceIdentifierObject(modelName, id)
 {
 	return {
 		id: id,
 		type: modelName
 	};
-};
+}
 
 module.exports = jsonapi;
