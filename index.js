@@ -120,6 +120,7 @@ function formatJsonApiError(status, title, detail, source) {
 function sendJsonApiError(res, status, title, detail, source) {
 	setJsonApiHeaders(res);
 	res.status(status).json({
+		jsonapi: { version: "1.1" },
 		errors: [formatJsonApiError(status, title, detail, source)]
 	});
 }
@@ -258,6 +259,9 @@ class jsonapi
 					self: buildResourceUrl(baseUrl, model.name, resourceId)
 				};
 
+				// Add jsonapi version member
+				jsonAPIObject.jsonapi = { version: "1.1" };
+
 				setJsonApiHeaders(res);
 				res.status(201).json(jsonAPIObject);
 			} catch (error) {
@@ -270,7 +274,10 @@ class jsonapi
 						{ pointer: `/data/attributes/${err.path}` }
 					));
 					setJsonApiHeaders(res);
-					return res.status(422).json({ errors });
+					return res.status(422).json({
+						jsonapi: { version: "1.1" },
+						errors
+					});
 				}
 
 				// Format other database errors
@@ -397,6 +404,9 @@ class jsonapi
 					};
 				}
 
+				// Add jsonapi version member
+				jsonAPIObject.jsonapi = { version: "1.1" };
+
 				setJsonApiHeaders(res);
 				res.json(jsonAPIObject);
 			} catch (error) {
@@ -456,6 +466,9 @@ class jsonapi
 					jsonAPIObject.links = {
 						self: buildResourceUrl(baseUrl, model.name)
 					};
+
+					// Add jsonapi version member
+					jsonAPIObject.jsonapi = { version: "1.1" };
 
 					setJsonApiHeaders(res);
 					res.json(jsonAPIObject);
@@ -527,6 +540,9 @@ class jsonapi
 					jsonAPIObject.links = {
 						self: `${buildResourceUrl(baseUrl, model.name)}${queryString}`
 					};
+
+					// Add jsonapi version member
+					jsonAPIObject.jsonapi = { version: "1.1" };
 
 					setJsonApiHeaders(res);
 					res.json(jsonAPIObject);
@@ -621,6 +637,9 @@ class jsonapi
 						self: `${buildResourceUrl(baseUrl, model.name, parentId)}/${relationshipName}`
 					};
 				}
+
+				// Add jsonapi version member
+				jsonAPIObject.jsonapi = { version: "1.1" };
 
 				setJsonApiHeaders(res);
 				res.json(jsonAPIObject);
@@ -768,6 +787,9 @@ class jsonapi
 					self: buildResourceUrl(baseUrl, model.name, req.params.id)
 				};
 
+				// Add jsonapi version member
+				jsonAPIObject.jsonapi = { version: "1.1" };
+
 				setJsonApiHeaders(res);
 				res.json(jsonAPIObject);
 			} catch (error) {
@@ -780,7 +802,10 @@ class jsonapi
 						{ pointer: `/data/attributes/${err.path}` }
 					));
 					setJsonApiHeaders(res);
-					return res.status(422).json({ errors });
+					return res.status(422).json({
+						jsonapi: { version: "1.1" },
+						errors
+					});
 				}
 
 				if (error.name === 'SequelizeDatabaseError') {
@@ -875,6 +900,9 @@ class jsonapi
 						}
 					}
 				}
+
+				// Add jsonapi version member
+				jsonAPIObject.jsonapi = { version: "1.1" };
 
 				setJsonApiHeaders(res);
 				res.json(jsonAPIObject);
@@ -1048,6 +1076,9 @@ class jsonapi
 						}
 					}
 				}
+
+				// Add jsonapi version member
+				jsonAPIObject.jsonapi = { version: "1.1" };
 
 				setJsonApiHeaders(res);
 				res.status(200).json(jsonAPIObject);

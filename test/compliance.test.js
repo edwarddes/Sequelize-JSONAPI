@@ -311,4 +311,85 @@ describe('JSON:API Compliance', function() {
 			expect(response.body.errors[0].detail).to.be.a('string');
 		});
 	});
+
+	describe('JSON:API Version Member', function() {
+		it('should include jsonapi version in successful GET response', async function() {
+			await seedTestData();
+
+			const response = await request(app)
+				.get('/api/users')
+				.expect(200);
+
+			expect(response.body).to.have.property('jsonapi');
+			expect(response.body.jsonapi).to.have.property('version', '1.1');
+		});
+
+		it('should include jsonapi version in POST response', async function() {
+			const response = await request(app)
+				.post('/api/users')
+				.set('Content-Type', 'application/vnd.api+json')
+				.send({
+					data: {
+						attributes: {
+							name: 'Test',
+							email: 'test@example.com'
+						}
+					}
+				})
+				.expect(201);
+
+			expect(response.body).to.have.property('jsonapi');
+			expect(response.body.jsonapi).to.have.property('version', '1.1');
+		});
+
+		it('should include jsonapi version in PATCH response', async function() {
+			const { user1 } = await seedTestData();
+
+			const response = await request(app)
+				.patch(`/api/users/${user1.id}`)
+				.set('Content-Type', 'application/vnd.api+json')
+				.send({
+					data: {
+						attributes: {
+							name: 'Updated'
+						}
+					}
+				})
+				.expect(200);
+
+			expect(response.body).to.have.property('jsonapi');
+			expect(response.body.jsonapi).to.have.property('version', '1.1');
+		});
+
+		it('should include jsonapi version in error responses', async function() {
+			const response = await request(app)
+				.get('/api/users/9999')
+				.expect(404);
+
+			expect(response.body).to.have.property('jsonapi');
+			expect(response.body.jsonapi).to.have.property('version', '1.1');
+		});
+
+		it('should include jsonapi version in relationship endpoint responses', async function() {
+			const { user1 } = await seedTestData();
+
+			const response = await request(app)
+				.get(`/api/users/${user1.id}/relationships/posts`)
+				.expect(200);
+
+			expect(response.body).to.have.property('jsonapi');
+			expect(response.body.jsonapi).to.have.property('version', '1.1');
+		});
+
+		it('should include jsonapi version in related resource endpoint responses', async function() {
+			const { user1 } = await seedTestData();
+
+			const response = await request(app)
+				.get(`/api/users/${user1.id}/posts`)
+				.expect(200);
+
+			expect(response.body).to.have.property('jsonapi');
+			expect(response.body.jsonapi).to.have.property('version', '1.1');
+		});
+	});
 });
