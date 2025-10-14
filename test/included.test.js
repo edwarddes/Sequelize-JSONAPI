@@ -74,6 +74,27 @@ describe('Included Resources (Compound Documents)', function() {
 			});
 		});
 
+		it('should exclude foreign keys from attributes in included resources', async function() {
+			const { user1 } = await seedTestData();
+
+			const response = await request(app)
+				.get(`/api/users/${user1.id}`)
+				.expect(200);
+
+			// Should have included posts
+			expect(response.body).to.have.property('included');
+			const includedPosts = response.body.included.filter(r => r.type === 'Post');
+			expect(includedPosts.length).to.be.greaterThan(0);
+
+			// Each included post should NOT have userId in attributes
+			// Foreign keys should only appear in relationships
+			includedPosts.forEach((post) => {
+				expect(post.attributes).to.not.have.property('userId');
+				expect(post).to.have.property('relationships');
+				expect(post.relationships).to.have.property('userId');
+			});
+		});
+
 		it('should include all posts belonging to user in included array', async function() {
 			const { user1 } = await seedTestData();
 
