@@ -113,8 +113,12 @@ async function resetDatabase() {
 }
 
 // Close database connection
+// Note: For in-memory SQLite, we don't actually close the connection
+// to allow multiple test suites to run. The connection is cleaned up
+// when the Node.js process exits.
 async function closeDatabase() {
-	await sequelize.close();
+	// No-op - don't close the shared connection
+	// This allows multiple test suites to reuse the same database
 }
 
 // Seed test data
