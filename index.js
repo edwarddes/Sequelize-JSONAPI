@@ -574,14 +574,9 @@ class jsonapi
 				const { association, associationType } = findAssociationByRelationshipName(model, relationshipName);
 
 				if (!association) {
-					return sendJsonApiError(
-						res,
-						404,
-						'Relationship Not Found',
-						`Relationship '${relationshipName}' not found on ${model.name}`
-					);
+					// Relationship not found - pass to next middleware instead of returning error
+					return next();
 				}
-
 				// Verify parent resource exists
 				const parentInstance = await model.findByPk(parentId);
 				if (!parentInstance) {
