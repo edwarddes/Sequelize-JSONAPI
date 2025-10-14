@@ -143,9 +143,9 @@ function validateContentType(req, res, next) {
 
 		// Check if Content-Type matches JSON:API spec
 		// Must be exactly 'application/vnd.api+json' with no media type parameters
-		if (contentType !== JSONAPI_CONTENT_TYPE && !contentType.startsWith(JSONAPI_CONTENT_TYPE + ';')) {
+		if (contentType !== JSONAPI_CONTENT_TYPE) {
 			// If it has the base type but with parameters, that's a 415 error
-			if (contentType.startsWith(JSONAPI_CONTENT_TYPE)) {
+			if (contentType.startsWith(JSONAPI_CONTENT_TYPE + ';') || contentType.startsWith(JSONAPI_CONTENT_TYPE + ' ')) {
 				return sendJsonApiError(
 					res,
 					415,
@@ -320,7 +320,7 @@ class jsonapi
 
 				await instance.destroy();
 				setJsonApiHeaders(res);
-				res.sendStatus(204);
+				res.status(204).end();
 			} catch (error) {
 				if (error.name === 'SequelizeDatabaseError') {
 					return sendJsonApiError(

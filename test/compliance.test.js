@@ -107,16 +107,19 @@ describe('JSON:API Compliance', function() {
 
 	describe('Content-Type Validation', function() {
 		it('should reject POST without Content-Type header', async function() {
+			const body = JSON.stringify({
+				data: {
+					attributes: {
+						name: 'Test',
+						email: 'test@example.com'
+					}
+				}
+			});
+
 			const response = await request(app)
 				.post('/api/users')
-				.send({
-					data: {
-						attributes: {
-							name: 'Test',
-							email: 'test@example.com'
-						}
-					}
-				})
+				.send(body)
+				.unset('Content-Type') // Remove Content-Type after send() sets it
 				.expect(400);
 
 			expect(response.body).to.have.property('errors');
