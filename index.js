@@ -393,9 +393,9 @@ class jsonapi
 				jsonAPIObject.data = object.resourceObject;
 
 				// Add included member if there are related resources (deduplicated)
-				if (object.included && object.included.length > 0) {
-					jsonAPIObject.included = deduplicateIncluded(object.included);
-				}
+				// if (object.included && object.included.length > 0) {
+				// 	jsonAPIObject.included = deduplicateIncluded(object.included);
+				// }
 
 				// Add top-level self link
 				if (!simple) {
@@ -531,9 +531,9 @@ class jsonapi
 					}
 
 					// Add included member if there are related resources (deduplicated)
-					if (allIncluded.length > 0) {
-						jsonAPIObject.included = deduplicateIncluded(allIncluded);
-					}
+					// if (allIncluded.length > 0) {
+					// 	jsonAPIObject.included = deduplicateIncluded(allIncluded);
+					// }
 
 					// Add top-level self link with query parameters
 					const queryString = req.url.substring(req.url.indexOf('?'));
@@ -593,6 +593,23 @@ class jsonapi
 					);
 				}
 
+				// Get association data for the target model to include nested relationships
+				const targetAssociationData = getAssociationDataForModel(association.target);
+				const includes = [];
+				targetAssociationData.hasManyAssociations.forEach((targetAssoc) => {
+					includes.push({
+						model: targetAssoc.target,
+						as: targetAssoc.as,
+						separate: true
+					});
+				});
+				targetAssociationData.hasOneAssociations.forEach((targetAssoc) => {
+					includes.push({
+						model: targetAssoc.target,
+						as: targetAssoc.as
+					});
+				});
+
 				const jsonAPIObject = {
 					data: null
 				};
@@ -602,12 +619,23 @@ class jsonapi
 					const relatedInstances = await association.target.findAll({
 						where: {
 							[association.foreignKey]: parentId
-						}
+						},
+						include: includes
 					});
 
-					jsonAPIObject.data = relatedInstances.map(instance =>
-						buildSimpleResourceObject(instance, [])
-					);
+					const allIncluded = [];
+					jsonAPIObject.data = relatedInstances.map(instance => {
+						const result = buildResourceObjectForInstance(instance, association.target, false, baseUrl);
+						if (result.included && result.included.length > 0) {
+							allIncluded.push(...result.included);
+						}
+						return result.resourceObject;
+					});
+
+					// Add included member if there are related resources (deduplicated)
+					// if (allIncluded.length > 0) {
+					// 	jsonAPIObject.included = deduplicateIncluded(allIncluded);
+					// }
 
 					jsonAPIObject.links = {
 						self: `${buildResourceUrl(baseUrl, model.name, parentId)}/${relationshipName}`
@@ -620,17 +648,26 @@ class jsonapi
 						relatedInstance = await association.target.findOne({
 							where: {
 								[association.foreignKey]: parentId
-							}
+							},
+							include: includes
 						});
 					} else { // BelongsTo
 						const foreignKeyValue = parentInstance.get(association.foreignKey);
 						if (foreignKeyValue) {
-							relatedInstance = await association.target.findByPk(foreignKeyValue);
+							relatedInstance = await association.target.findByPk(foreignKeyValue, {
+								include: includes
+							});
 						}
 					}
 
 					if (relatedInstance) {
-						jsonAPIObject.data = buildSimpleResourceObject(relatedInstance, []);
+						const result = buildResourceObjectForInstance(relatedInstance, association.target, false, baseUrl);
+						jsonAPIObject.data = result.resourceObject;
+
+						// Add included member if there are related resources (deduplicated)
+						// if (result.included && result.included.length > 0) {
+						// 	jsonAPIObject.included = deduplicateIncluded(result.included);
+						// }
 					}
 
 					jsonAPIObject.links = {
@@ -778,9 +815,9 @@ class jsonapi
 				jsonAPIObject.data = object.resourceObject;
 
 				// Add included member if there are related resources (deduplicated)
-				if (object.included && object.included.length > 0) {
-					jsonAPIObject.included = deduplicateIncluded(object.included);
-				}
+				// if (object.included && object.included.length > 0) {
+				// 	jsonAPIObject.included = deduplicateIncluded(object.included);
+				// }
 
 				// Add top-level self link
 				jsonAPIObject.links = {
@@ -1130,7 +1167,16 @@ function buildResourceObjectForInstance(instance, model, simple, baseUrl)
 					{
 						const entityRowValues = entity.get();
 						relationshipValues.push(buildResourceIdentifierObject(entity.constructor.name, entityRowValues.id));
-						included.push(buildSimpleResourceObject(entity, associationData.excludedKeys));
+
+						// Recursively build resource object for included entities with their relationships
+						const entityResult = buildResourceObjectForInstance(entity, associationKey.target, false, baseUrl);
+						if (entityResult) {
+							included.push(entityResult.resourceObject);
+							// Collect nested included resources
+							if (entityResult.included && entityResult.included.length > 0) {
+								included.push(...entityResult.included);
+							}
+						}
 					});
 				}
 				relationship.data = relationshipValues;
@@ -1158,6 +1204,16 @@ function buildResourceObjectForInstance(instance, model, simple, baseUrl)
 					relationship.data = buildResourceIdentifierObject(
 						rowValues[associationKey.as].constructor.name,
 						rowValues[associationKey.as].id);
+
+					// Recursively build resource object for included entity with its relationships
+					const entityResult = buildResourceObjectForInstance(rowValues[associationKey.as], associationKey.target, false, baseUrl);
+					if (entityResult) {
+						included.push(entityResult.resourceObject);
+						// Collect nested included resources
+						if (entityResult.included && entityResult.included.length > 0) {
+							included.push(...entityResult.included);
+						}
+					}
 				}
 				else
 				{
