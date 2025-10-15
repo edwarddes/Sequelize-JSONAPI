@@ -251,7 +251,39 @@ class jsonapi
 
 				const row = await model.create(attributes);
 				const resourceId = row.get('id');
-				jsonAPIObject.data = buildResourceIdentifierObject(model.name, resourceId);
+
+				// Build full resource object with attributes (like PATCH does)
+				// Reuse associationData from above
+				const includes = [];
+				associationData.hasManyAssociations.forEach((association) => {
+					includes.push({
+						model: association.target,
+						as: association.as,
+						separate: true
+					});
+				});
+				associationData.hasOneAssociations.forEach((association) => {
+					includes.push({
+						model: association.target,
+						as: association.as
+					});
+				});
+
+				// Fetch the newly created resource with associations
+				const object = await fetchAndBuildResourceObjectForModelById(
+					model,
+					resourceId,
+					{ include: includes },
+					false,
+					getBaseUrl(req)
+				);
+
+				jsonAPIObject.data = object.resourceObject;
+
+				// Add included member if there are related resources
+				if (object.included && object.included.length > 0) {
+					jsonAPIObject.included = object.included;
+				}
 
 				// Add top-level self link pointing to the newly created resource
 				const baseUrl = getBaseUrl(req);
