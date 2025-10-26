@@ -2,6 +2,7 @@
 
 const dasherize = require('dasherize');
 const inflection = require('inflection');
+const { Op } = require('sequelize');
 
 // JSON:API Content-Type constant
 const JSONAPI_CONTENT_TYPE = 'application/vnd.api+json';
@@ -123,6 +124,53 @@ function sendJsonApiError(res, status, title, detail, source) {
 		jsonapi: { version: "1.1" },
 		errors: [formatJsonApiError(status, title, detail, source)]
 	});
+}
+
+// Helper function to parse filter parameters with operators
+function parseFilterParameters(filter) {
+	const where = {};
+
+	// Map of filter operators to Sequelize operators
+	const operatorMap = {
+		'gt': Op.gt,      // Greater than
+		'gte': Op.gte,    // Greater than or equal
+		'lt': Op.lt,      // Less than
+		'lte': Op.lte,    // Less than or equal
+		'ne': Op.ne,      // Not equal
+		'like': Op.like,  // SQL LIKE
+		'in': Op.in       // IN array
+	};
+
+	Object.keys(filter).forEach((field) => {
+		const value = filter[field];
+
+		// Check if the value is an object (contains operators)
+		if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+			// Handle operator syntax: filter[field][operator]=value
+			where[field] = {};
+
+			Object.keys(value).forEach((operator) => {
+				const operatorValue = value[operator];
+
+				if (operatorMap[operator]) {
+					// Convert comma-separated values to array for 'in' operator
+					if (operator === 'in' && typeof operatorValue === 'string') {
+						where[field][operatorMap[operator]] = operatorValue.split(',');
+					} else {
+						where[field][operatorMap[operator]] = operatorValue;
+					}
+				} else {
+					// Unknown operator, treat as nested field (maintain backward compatibility)
+					where[field] = value;
+				}
+			});
+		} else {
+			// Simple equality filter: filter[field]=value
+			where[field] = value;
+		}
+	});
+
+	return where;
 }
 
 // Middleware to validate Content-Type header on requests with body
@@ -468,10 +516,17 @@ class jsonapi
 				let filter = null;
 				if (req.query.filter !== undefined && req.query.filter.id !== undefined)
 				{
-					idList = req.query.filter.id.split(',');
+					// Check if id filter uses operators or is a simple comma-separated list
+					if (typeof req.query.filter.id === 'object' && !Array.isArray(req.query.filter.id)) {
+						// ID filter with operators like filter[id][gt]=5
+						filter = req.query.filter;
+					} else {
+						// Simple comma-separated ID list: filter[id]=1,2,3
+						idList = req.query.filter.id.split(',');
+					}
 				}
 
-				// Other filter parameter
+				// Other filter parameters
 				if (req.query.filter !== undefined && req.query.filter.id === undefined)
 				{
 					filter = req.query.filter;
@@ -534,7 +589,7 @@ class jsonapi
 					}
 					else if (filter !== null)
 					{
-						options.where = filter;
+						options.where = parseFilterParameters(filter);
 					}
 
 					const instances = await model.findAll(options);

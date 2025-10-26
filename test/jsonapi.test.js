@@ -291,6 +291,111 @@ describe('Sequelize-JSONAPI', function() {
 			expect(response.body.data).to.have.lengthOf(1);
 			expect(response.body.data[0].attributes.name).to.equal('John Doe');
 		});
+
+		it('should filter with greater than (gt) operator', async function() {
+			await seedTestData();
+
+			const response = await request(app)
+				.get('/api/users')
+				.query({ filter: { age: { gt: 25 } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(1);
+			expect(response.body.data[0].attributes.age).to.be.greaterThan(25);
+		});
+
+		it('should filter with greater than or equal (gte) operator', async function() {
+			await seedTestData();
+
+			const response = await request(app)
+				.get('/api/users')
+				.query({ filter: { age: { gte: 30 } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(1);
+			expect(response.body.data[0].attributes.age).to.be.at.least(30);
+		});
+
+		it('should filter with less than (lt) operator', async function() {
+			await seedTestData();
+
+			const response = await request(app)
+				.get('/api/users')
+				.query({ filter: { age: { lt: 30 } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(1);
+			expect(response.body.data[0].attributes.age).to.be.lessThan(30);
+		});
+
+		it('should filter with less than or equal (lte) operator', async function() {
+			await seedTestData();
+
+			const response = await request(app)
+				.get('/api/users')
+				.query({ filter: { age: { lte: 25 } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(1);
+			expect(response.body.data[0].attributes.age).to.be.at.most(25);
+		});
+
+		it('should filter with not equal (ne) operator', async function() {
+			await seedTestData();
+
+			const response = await request(app)
+				.get('/api/users')
+				.query({ filter: { name: { ne: 'John Doe' } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(1);
+			expect(response.body.data[0].attributes.name).to.not.equal('John Doe');
+		});
+
+		it('should filter with like operator', async function() {
+			await seedTestData();
+
+			const response = await request(app)
+				.get('/api/users')
+				.query({ filter: { name: { like: '%Doe%' } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(1);
+			expect(response.body.data[0].attributes.name).to.include('Doe');
+		});
+
+		it('should filter with in operator using comma-separated values', async function() {
+			const { user1, user2 } = await seedTestData();
+
+			const response = await request(app)
+				.get('/api/users')
+				.query({ filter: { id: { in: `${user1.id},${user2.id}` } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(2);
+		});
+
+		it('should combine multiple filter operators', async function() {
+			await seedTestData();
+
+			const response = await request(app)
+				.get('/api/users')
+				.query({ filter: { age: { gte: 25, lte: 30 } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			response.body.data.forEach(user => {
+				expect(user.attributes.age).to.be.at.least(25);
+				expect(user.attributes.age).to.be.at.most(30);
+			});
+		});
 	});
 
 	describe('Update Operation', function() {
