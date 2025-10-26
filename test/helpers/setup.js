@@ -47,6 +47,10 @@ const Post = sequelize.define('Post', {
 	userId: {
 		type: DataTypes.INTEGER,
 		allowNull: true
+	},
+	publishedAt: {
+		type: DataTypes.DATE,
+		allowNull: true
 	}
 }, {
 	timestamps: false
@@ -138,19 +142,22 @@ async function seedTestData() {
 	const post1 = await Post.create({
 		title: 'First Post',
 		content: 'This is the first post',
-		userId: user1.id
+		userId: user1.id,
+		publishedAt: new Date('2024-01-15T10:00:00Z') // Unix: 1705312800
 	});
 
 	const post2 = await Post.create({
 		title: 'Second Post',
 		content: 'This is the second post',
-		userId: user1.id
+		userId: user1.id,
+		publishedAt: new Date('2024-06-20T14:30:00Z') // Unix: 1718893800
 	});
 
 	const post3 = await Post.create({
 		title: 'Third Post',
 		content: 'This is the third post',
-		userId: user2.id
+		userId: user2.id,
+		publishedAt: new Date('2024-12-01T08:00:00Z') // Unix: 1733040000
 	});
 
 	await Comment.create({

@@ -3,6 +3,7 @@
 const dasherize = require('dasherize');
 const inflection = require('inflection');
 const { Op } = require('sequelize');
+const dayjs = require('dayjs');
 
 // JSON:API Content-Type constant
 const JSONAPI_CONTENT_TYPE = 'application/vnd.api+json';
@@ -126,8 +127,35 @@ function sendJsonApiError(res, status, title, detail, source) {
 	});
 }
 
+// Helper function to check if a field is a date type
+function isDateField(model, fieldName) {
+	const attribute = model.rawAttributes[fieldName];
+	if (!attribute) {
+		return false;
+	}
+
+	const type = attribute.type;
+	// Check if it's a DATE or DATEONLY type
+	return type && (type.key === 'DATE' || type.key === 'DATEONLY');
+}
+
+// Helper function to convert Unix timestamp to Date
+function convertUnixToDate(value) {
+	// Check if value is a valid Unix timestamp (number or numeric string)
+	if (value === null || value === undefined || value === '') {
+		return value;
+	}
+
+	const timestamp = typeof value === 'string' ? parseFloat(value) : value;
+	if (isNaN(timestamp)) {
+		return value; // Return as-is if not a valid number
+	}
+
+	return dayjs.unix(timestamp/1000).toDate();
+}
+
 // Helper function to parse filter parameters with operators
-function parseFilterParameters(filter) {
+function parseFilterParameters(filter, model) {
 	const where = {};
 
 	// Map of filter operators to Sequelize operators
@@ -143,6 +171,7 @@ function parseFilterParameters(filter) {
 
 	Object.keys(filter).forEach((field) => {
 		const value = filter[field];
+		const isDate = isDateField(model, field);
 
 		// Check if the value is an object (contains operators)
 		if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
@@ -150,12 +179,21 @@ function parseFilterParameters(filter) {
 			where[field] = {};
 
 			Object.keys(value).forEach((operator) => {
-				const operatorValue = value[operator];
+				let operatorValue = value[operator];
 
 				if (operatorMap[operator]) {
+					// Convert Unix timestamp to Date for date fields
+					if (isDate && operator !== 'in') {
+						operatorValue = convertUnixToDate(operatorValue);
+					}
+
 					// Convert comma-separated values to array for 'in' operator
 					if (operator === 'in' && typeof operatorValue === 'string') {
-						where[field][operatorMap[operator]] = operatorValue.split(',');
+						const values = operatorValue.split(',');
+						// Convert each value if it's a date field
+						where[field][operatorMap[operator]] = isDate
+							? values.map(convertUnixToDate)
+							: values;
 					} else {
 						where[field][operatorMap[operator]] = operatorValue;
 					}
@@ -166,10 +204,11 @@ function parseFilterParameters(filter) {
 			});
 		} else {
 			// Simple equality filter: filter[field]=value
-			where[field] = value;
+			where[field] = isDate ? convertUnixToDate(value) : value;
 		}
 	});
 
+	console.log(where);
 	return where;
 }
 
@@ -589,7 +628,7 @@ class jsonapi
 					}
 					else if (filter !== null)
 					{
-						options.where = parseFilterParameters(filter);
+						options.where = parseFilterParameters(filter, model);
 					}
 
 					const instances = await model.findAll(options);

@@ -396,6 +396,82 @@ describe('Sequelize-JSONAPI', function() {
 				expect(user.attributes.age).to.be.at.most(30);
 			});
 		});
+
+		it('should filter date fields with Unix timestamp (equality)', async function() {
+			await seedTestData();
+
+			// Filter for posts published on 2024-01-15 (Unix: 1705312800)
+			const response = await request(app)
+				.get('/api/posts')
+				.query({ filter: { publishedAt: 1705312800 } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(1);
+			expect(response.body.data[0].attributes.title).to.equal('First Post');
+		});
+
+		it('should filter date fields with Unix timestamp (gt operator)', async function() {
+			await seedTestData();
+
+			// Filter for posts published after 2024-06-01 (Unix: 1717200000)
+			const response = await request(app)
+				.get('/api/posts')
+				.query({ filter: { publishedAt: { gt: 1717200000 } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(2); // post2 and post3
+			const titles = response.body.data.map(p => p.attributes.title);
+			expect(titles).to.include('Second Post');
+			expect(titles).to.include('Third Post');
+		});
+
+		it('should filter date fields with Unix timestamp (lt operator)', async function() {
+			await seedTestData();
+
+			// Filter for posts published before 2024-06-01 (Unix: 1717200000)
+			const response = await request(app)
+				.get('/api/posts')
+				.query({ filter: { publishedAt: { lt: 1717200000 } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(1);
+			expect(response.body.data[0].attributes.title).to.equal('First Post');
+		});
+
+		it('should filter date fields with Unix timestamp range (gte and lte)', async function() {
+			await seedTestData();
+
+			// Filter for posts published between 2024-01-01 and 2024-07-01
+			const response = await request(app)
+				.get('/api/posts')
+				.query({ filter: { publishedAt: { gte: 1704067200, lte: 1719792000 } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(2); // post1 and post2
+			const titles = response.body.data.map(p => p.attributes.title);
+			expect(titles).to.include('First Post');
+			expect(titles).to.include('Second Post');
+		});
+
+		it('should filter date fields with Unix timestamp (in operator)', async function() {
+			await seedTestData();
+
+			// Filter for posts with specific publish dates
+			const response = await request(app)
+				.get('/api/posts')
+				.query({ filter: { publishedAt: { in: '1705312800,1733040000' } } })
+				.expect(200);
+
+			expect(response.body.data).to.be.an('array');
+			expect(response.body.data).to.have.lengthOf(2);
+			const titles = response.body.data.map(p => p.attributes.title);
+			expect(titles).to.include('First Post');
+			expect(titles).to.include('Third Post');
+		});
 	});
 
 	describe('Update Operation', function() {
