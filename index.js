@@ -89,7 +89,7 @@ function findAssociationByRelationshipName(model, relationshipName) {
 	// Check belongsTo associations
 	if (!association) {
 		const belongsToMatch = associationData.belongsToAssociations.find(assoc => {
-			return assoc.foreignKey === relationshipName;
+			return assoc.as === relationshipName;
 		});
 		if (belongsToMatch) {
 			association = belongsToMatch;
@@ -208,7 +208,6 @@ function parseFilterParameters(filter, model) {
 		}
 	});
 
-	console.log(where);
 	return where;
 }
 
@@ -322,7 +321,7 @@ class jsonapi
 				const associationData = getAssociationDataForModel(model);
 				associationData.belongsToAssociations.forEach((belongsTo) =>
 				{
-					const relationship = relationshipsData[belongsTo.foreignKey];
+					const relationship = relationshipsData[belongsTo.as];
 					if (relationship !== null && relationship !== undefined)
 					{
 						if (relationship.data !== null && relationship.data !== undefined)
@@ -350,6 +349,12 @@ class jsonapi
 					});
 				});
 				associationData.hasOneAssociations.forEach((association) => {
+					includes.push({
+						model: association.target,
+						as: association.as
+					});
+				});
+				associationData.belongsToAssociations.forEach((association) => {
 					includes.push({
 						model: association.target,
 						as: association.as
@@ -488,6 +493,13 @@ class jsonapi
 							as: association.as
 						});
 					});
+					associationData.belongsToAssociations.forEach((association) =>
+					{
+						includes.push({
+							model: association.target,
+							as: association.as
+						});
+					});
 					options.include = includes;
 				}
 
@@ -575,8 +587,11 @@ class jsonapi
 					data: []
 				};
 
+				// Check if include parameter is present - if so, we need to load relationships
+				const hasIncludeParam = req.query.include !== undefined;
+
 				// Fetching list of all of model
-				if (idList === null && filter === null)
+				if (idList === null && filter === null && !hasIncludeParam)
 				{
 					const instances = await model.findAll(options);
 
@@ -614,6 +629,13 @@ class jsonapi
 						});
 					});
 					associationData.hasOneAssociations.forEach((association) =>
+					{
+						includes.push({
+							model: association.target,
+							as: association.as
+						});
+					});
+					associationData.belongsToAssociations.forEach((association) =>
 					{
 						includes.push({
 							model: association.target,
@@ -878,7 +900,7 @@ class jsonapi
 				{
 					if (relationships && belongsTo.foreignKey !== undefined)
 					{
-						const relationship = relationships[belongsTo.foreignKey];
+						const relationship = relationships[belongsTo.as];
 						if (relationship.data !== null && relationship.data !== undefined)
 						{
 							attributes[belongsTo.foreignKey] = relationship.data.id;
@@ -906,6 +928,13 @@ class jsonapi
 					});
 				});
 				associationData.hasOneAssociations.forEach((association) =>
+				{
+					includes.push({
+						model: association.target,
+						as: association.as
+					});
+				});
+				associationData.belongsToAssociations.forEach((association) =>
 				{
 					includes.push({
 						model: association.target,
@@ -1377,12 +1406,12 @@ function buildResourceObjectForInstance(instance, model, simple, baseUrl)
 						baseUrl,
 						model.name,
 						rowValues.id,
-						associationKey.foreignKey,
+						associationKey.as,
 						associationKey.target.name
 					);
 				}
 
-				relationships[associationKey.foreignKey] = relationship;
+				relationships[associationKey.as] = relationship;
 			});
 
 			resourceObject.relationships = relationships;
@@ -1423,6 +1452,7 @@ function getAssociationDataForModel(model)
 		if (associationType === "BelongsTo")
 		{
 			associationData.excludedKeys.push(associations[associationKey].foreignKey);
+			associationData.excludedKeys.push(associations[associationKey].as);
 			associationData.belongsToAssociations.push(associations[associationKey]);
 		}
 	});
