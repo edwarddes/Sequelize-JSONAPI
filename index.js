@@ -51,9 +51,12 @@ function buildRelationshipLinks(baseUrl, modelName, id, relationshipName, relate
 function getBaseUrl(req) {
 	// Get the base path from the request, removing the resource-specific parts
 	// For example: "/api/users/123" -> "/api"
+	// When behind a reverse proxy, use X-Forwarded-Proto and X-Forwarded-Prefix headers
+	// Note: Express app must have 'trust proxy' enabled for req.protocol to use X-Forwarded-Proto
 	const protocol = req.protocol;
 	const host = req.get('host');
-	const path = req.baseUrl || '';
+	const forwardedPrefix = req.get('X-Forwarded-Prefix') || '';
+	const path = forwardedPrefix || req.baseUrl || '';
 	return `${protocol}://${host}${path}`;
 }
 
