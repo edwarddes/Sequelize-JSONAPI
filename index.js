@@ -904,13 +904,15 @@ class jsonapi
 					if (relationships && belongsTo.foreignKey !== undefined)
 					{
 						const relationship = relationships[belongsTo.as];
-						if (relationship.data !== null && relationship.data !== undefined)
-						{
-							attributes[belongsTo.foreignKey] = relationship.data.id;
-						}
-						else
-						{
-							attributes[belongsTo.foreignKey] = null;
+						if (relationship !== undefined) {
+							if (relationship.data !== null && relationship.data !== undefined)
+							{
+								attributes[belongsTo.foreignKey] = relationship.data.id;
+							}
+							else
+							{
+								attributes[belongsTo.foreignKey] = null;
+							}
 						}
 					}
 				});
