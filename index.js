@@ -92,7 +92,7 @@ function findAssociationByRelationshipName(model, relationshipName) {
 	// Check belongsTo associations
 	if (!association) {
 		const belongsToMatch = associationData.belongsToAssociations.find(assoc => {
-			return assoc.as === relationshipName;
+			return assoc.foreignKey === relationshipName;
 		});
 		if (belongsToMatch) {
 			association = belongsToMatch;
@@ -324,7 +324,7 @@ class jsonapi
 				const associationData = getAssociationDataForModel(model);
 				associationData.belongsToAssociations.forEach((belongsTo) =>
 				{
-					const relationship = relationshipsData[belongsTo.as];
+					const relationship = relationshipsData[belongsTo.foreignKey];
 					if (relationship !== null && relationship !== undefined)
 					{
 						if (relationship.data !== null && relationship.data !== undefined)
@@ -903,7 +903,7 @@ class jsonapi
 				{
 					if (relationships && belongsTo.foreignKey !== undefined)
 					{
-						const relationship = relationships[belongsTo.as];
+						const relationship = relationships[belongsTo.foreignKey];
 						if (relationship !== undefined) {
 							if (relationship.data !== null && relationship.data !== undefined)
 							{
@@ -1411,12 +1411,12 @@ function buildResourceObjectForInstance(instance, model, simple, baseUrl)
 						baseUrl,
 						model.name,
 						rowValues.id,
-						associationKey.as,
+						associationKey.foreignKey,
 						associationKey.target.name
 					);
 				}
 
-				relationships[associationKey.as] = relationship;
+				relationships[associationKey.foreignKey] = relationship;
 			});
 
 			resourceObject.relationships = relationships;
