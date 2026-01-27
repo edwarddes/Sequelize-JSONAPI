@@ -755,6 +755,12 @@ class jsonapi
 						as: targetAssoc.as
 					});
 				});
+				targetAssociationData.belongsToAssociations.forEach((targetAssoc) => {
+					includes.push({
+						model: targetAssoc.target,
+						as: targetAssoc.as
+					});
+				});
 
 				const jsonAPIObject = {
 					data: null
